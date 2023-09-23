@@ -45,14 +45,20 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
         if rollover_threshold in self.available_rollover_thresholds:
             self.rollover_threshold = rollover_threshold
         self.rollover_delta = self.calculate_rollover_delta()
-        self.current_rollover_time = self.calculate_rollover_time()
-        self.next_rollover_time = self.current_rollover_time + self.rollover_delta
+        self.calculate_rollover_times()
         self.date_folder = date_folder
         self.baseFilename_without_timestamp = self.baseFilename
         self.baseFilename = self.get_baseFilename()
 
+    def calculate_next_rollover_time(self):
+        return self.current_rollover_time + self.rollover_delta
+
     def calculate_rollover_time(self):
         return self.calculate_rollover_origin(self.now())
+
+    def calculate_rollover_times(self):
+        self.current_rollover_time = self.calculate_rollover_time()
+        self.next_rollover_time = self.calculate_next_rollover_time()
 
     def calculate_rollover_delta(self):
         rollover_delta = datetime.timedelta(days=1)
@@ -77,14 +83,21 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
             dt = dt.astimezone(self.timezone)
         # minute is the lowest threshold
         o = dt.replace(second=0, microsecond=0)
-        if self.rollover_threshold in ["hour", "day", "day-of-week", "day-of-year", "month", "year"]:
+        if self.rollover_threshold in ["hour", "day", "day-of-week", "day-of-year", "week-of-year", "month", "year"]:
             o = o.replace(minute=0)
-        if self.rollover_threshold in ["day", "day-of-week", "day-of-year", "month", "year"]:
+        if self.rollover_threshold in ["day", "day-of-week", "day-of-year", "week-of-year", "month", "year"]:
             o = o.replace(hour=0, minute=0)
-        if self.rollover_threshold in ["week-of-year"]:
+        if self.rollover_threshold in ["day-of-week"]:
             # iso week starts on Monday.
             # weekday starts at Monday=0
+            # only using it to calculate the monday date.  Don't need to worry about it conflicting with isocalendar's
+            # monday=1 in week-of-year.
             o = o - datetime.timedelta(days=o.weekday())
+        if self.rollover_threshold in ["week-of-year"]:
+            # isocalendar counts week 1 as the week containing jan 4.
+            # https://webspace.science.uu.nl/~gent0113/calendar/isocalendar.htm
+            # use o.isocalendar().week to get 1-53
+            pass
         if self.rollover_threshold in ["month", "year"]:
             o = o.replace(day=1)
         if self.rollover_threshold in ["year"]:
@@ -101,8 +114,7 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
             self.stream = None
 
         # Recalculate rollover times
-        self.current_rollover_time = self.calculate_rollover_time()
-        self.next_rollover_time = self.current_rollover_time + self.rollover_delta
+        self.calculate_rollover_times()
 
         # Set the new baseFilename to include the now-current rollover time.
         self.baseFilename = self.get_baseFilename()
@@ -125,8 +137,25 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
         at_time = at_time or self.current_rollover_time
         p = pathlib.Path(self.baseFilename_without_timestamp)
         format_str = "%Y-%m-%d_%H-%M-%S"  # _%Z_%z  Leaving out the timezone offset.
-        if self.rollover_threshold in ["day", "day-of-week", "day-of-year", "week-of-year", "month", "year"]:
+        if self.rollover_threshold in ["year"]:
+            format_str = "%Y"
+        if self.rollover_threshold in ["month"]:
+            format_str = "%Y-%m"
+        if self.rollover_threshold in ["week-of-year"]:
+            # using iso version of year as it matches what is returned by %V
+            # %W would return 00-53 (sunday-based).  %V returns 01-53 (jan 4th-based).
+            format_str = "%G-%V"
+        if self.rollover_threshold in ["day-of-year"]:
+            format_str = "%Y-%j"
+        if self.rollover_threshold in ["day-of-week"]:
+            # TODO: needs work.  %u shows 1-7 but I want the monday date of the week.
+            format_str = "%Y-%m-%u"
+        if self.rollover_threshold in ["day"]:
             format_str = "%Y-%m-%d"
+        if self.rollover_threshold in ["hour"]:
+            format_str = "%Y-%m-%d_%H"
+        if self.rollover_threshold in ["minute"]:
+            format_str = "%Y-%m-%d_%H-%M"
         if self.date_folder:
             just_the_folder = p.parent / at_time.strftime(self.date_folder)
             just_the_folder.mkdir(parents=True, exist_ok=True)
