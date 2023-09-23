@@ -15,7 +15,14 @@ to the next when the current date/time changes sufficiently.
 
 This handler came about in a Django project and had it starting a new file each day.
 
+Tests
+====
 
+Runs tests as:
+
+::
+
+    python -m unittest
 
 Unrelated to this module
 ====

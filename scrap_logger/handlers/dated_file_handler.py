@@ -72,7 +72,7 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
         If threshold is year, returns the Jan 1 of that year.
         :return:
         """
-        if isinstance(dt, datetime.date):
+        if not isinstance(dt, datetime.datetime):
             dt = datetime.datetime.combine(dt, datetime.datetime.min.time())
             dt = dt.astimezone(self.timezone)
         # minute is the lowest threshold
@@ -101,7 +101,7 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
             self.stream = None
 
         # Recalculate rollover times
-        self.current_rollover_time = self.next_rollover_time
+        self.current_rollover_time = self.calculate_rollover_time()
         self.next_rollover_time = self.current_rollover_time + self.rollover_delta
 
         # Set the new baseFilename to include the now-current rollover time.

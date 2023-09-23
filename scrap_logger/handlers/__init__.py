@@ -1,1 +1,1 @@
-from dated_file_handler import DatedFileHandler
+from .dated_file_handler import DatedFileHandler
