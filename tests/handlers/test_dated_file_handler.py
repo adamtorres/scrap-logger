@@ -99,7 +99,7 @@ class TestDatedFileHandler(unittest.TestCase):
         self.assertEqual(ro.time(), datetime.datetime.min.time())
 
     def test_get_baseFilename(self):
-        handler = handlers.DatedFileHandler("filename.txt", rollover_threshold="minute")
+        handler = handlers.DatedFileHandler("filename.txt", rollover_threshold="minute", make_parent_folder=False)
         dt = datetime.datetime(2023, 9, 23, 7, 31, 0)
         thresholds = [
             ("year", "2023_filename.txt"),
@@ -116,3 +116,25 @@ class TestDatedFileHandler(unittest.TestCase):
                 handler.rollover_threshold = threshold
                 bfn = pathlib.Path(handler.get_baseFilename(at_time=dt))
                 self.assertEqual(bfn.name, expected_filename)
+        # 2023, 10, 1 == day-of-week == 2023-09-25
+
+    def test_get_baseFilename_with_folder(self):
+        handler = handlers.DatedFileHandler(
+            "filename.txt", rollover_threshold="minute", date_folder="%Y-%m", make_parent_folder=False)
+        dt = datetime.datetime(2023, 9, 23, 7, 31, 0)
+        thresholds = [
+            ("year", "2023_filename.txt", "2023-09"),
+            ("month", "2023-09_filename.txt", "2023-09"),
+            ("week-of-year", "2023-38_filename.txt", "2023-09"),
+            ("day-of-year", "2023-266_filename.txt", "2023-09"),
+            ("day-of-week", "2023-09-18_filename.txt", "2023-09"),
+            ("day", "2023-09-23_filename.txt", "2023-09"),
+            ("hour", "2023-09-23_07_filename.txt", "2023-09"),
+            ("minute", "2023-09-23_07-31_filename.txt", "2023-09"),
+        ]
+        for threshold, expected_filename, expected_dir in thresholds:
+            with self.subTest(threshold=threshold, expected_filename=expected_filename, expected_dir=expected_dir):
+                handler.rollover_threshold = threshold
+                bfn = pathlib.Path(handler.get_baseFilename(at_time=dt))
+                self.assertEqual(bfn.name, expected_filename)
+                self.assertEqual(bfn.parent.parts[-1], expected_dir)

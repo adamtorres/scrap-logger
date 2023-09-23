@@ -18,10 +18,11 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
     timezone = zoneinfo.ZoneInfo("UTC")
     baseFilename_without_timestamp = None
     date_folder = None
+    make_parent_folder = True
 
     def __init__(
             self, filename, mode='a', rollover_threshold="day", encoding=None, delay=True, tz=zoneinfo.ZoneInfo("UTC"),
-            date_folder=None
+            date_folder=None, make_parent_folder=True
     ):
         """
         :param filename:
@@ -37,6 +38,7 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
         :param delay: Default to True so the file isn't created until the first emit.
         :param tz:
         :param date_folder: Put the log file in a date folder formatted as provided.  If None, no folder.  "%Y-%m-%d"
+        :param make_parent_folder: Used for testing when we don't want to automatically create date folders.
         """
         if "b" not in mode:
             encoding = encoding or "utf-8"
@@ -47,6 +49,7 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
         self.rollover_delta = self.calculate_rollover_delta()
         self.calculate_rollover_times()
         self.date_folder = date_folder
+        self.make_parent_folder = make_parent_folder
         self.baseFilename_without_timestamp = self.baseFilename
         self.baseFilename = self.get_baseFilename()
 
@@ -148,8 +151,10 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
         if self.rollover_threshold in ["day-of-year"]:
             format_str = "%Y-%j"
         if self.rollover_threshold in ["day-of-week"]:
-            # TODO: needs work.  %u shows 1-7 but I want the monday date of the week.
-            format_str = "%Y-%m-%u"
+            adjusted_date = at_time - datetime.timedelta(days=at_time.weekday())
+            # Cannot use the % formats from at_time as the adjusted date could change the year and/or month
+            # format_str = f"{adjusted_date.year:04}-{adjusted_date.month:02}-{adjusted_date.day:02}"
+            format_str = adjusted_date.strftime("%Y-%m-%d")
         if self.rollover_threshold in ["day"]:
             format_str = "%Y-%m-%d"
         if self.rollover_threshold in ["hour"]:
@@ -158,7 +163,8 @@ class DatedFileHandler(handlers.BaseRotatingHandler):
             format_str = "%Y-%m-%d_%H-%M"
         if self.date_folder:
             just_the_folder = p.parent / at_time.strftime(self.date_folder)
-            just_the_folder.mkdir(parents=True, exist_ok=True)
+            if self.make_parent_folder:
+                just_the_folder.mkdir(parents=True, exist_ok=True)
             return str(just_the_folder / f"{at_time.strftime(format_str)}_{p.name}")
         return str(p.with_name(f"{at_time.strftime(format_str)}_{p.name}"))
 
